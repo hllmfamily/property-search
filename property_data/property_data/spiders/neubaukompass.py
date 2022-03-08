@@ -1,7 +1,7 @@
-from re import sub
+import re
+
 import scrapy
 from loguru import logger
-import re
 
 
 class MissingDataSelector:
