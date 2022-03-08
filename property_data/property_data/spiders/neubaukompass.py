@@ -17,7 +17,9 @@ class ParserOneProperty:
         self.name = "neubaukompass"
 
     def get_all_metadata(self, selector) -> dict:
-        metadata_selector = selector.xpath('div[@class="nbk-px-2 nbk-pt-2 md:nbk-px-3 md:nbk-pt-3"]')
+        metadata_selector = selector.xpath(
+            'div[@class="nbk-px-2 nbk-pt-2 md:nbk-px-3 md:nbk-pt-3"]'
+        )
 
         if len(metadata_selector) > 0:
             metadata_selector = metadata_selector[0]
@@ -42,7 +44,9 @@ class ParserOneProperty:
         try:
             selected_selector = selector.xpath(xpath)
         except Exception as e:
-            logger.error(f"can not select xpath ({xpath}) from the selector: {selector}\n{e}")
+            logger.error(
+                f"can not select xpath ({xpath}) from the selector: {selector}\n{e}"
+            )
 
         if self.__error(selected_selector):
             return MissingDataSelector if first_only else selected_selector
@@ -52,16 +56,20 @@ class ParserOneProperty:
     def _get_title(self, metadata_selector):
 
         titles_xpath = 'div[@class="nbk-w-full nbk-flex nbk-flex-wrap nbk-justify-between nbk-items-top nbk-mt-3"]/a/h2'
-        title_selector = self.__select_first_from_selector(metadata_selector, titles_xpath)
+        title_selector = self.__select_first_from_selector(
+            metadata_selector, titles_xpath
+        )
 
         xpaths = {
-            'title': 'span[@class="nbk-block nbk-truncate nbk-pb-1"]/text()',
-            'subtitle': 'span[@class="nbk-block nbk-truncate nbk-text-base nbk-font-normal"]/text()'
+            "title": 'span[@class="nbk-block nbk-truncate nbk-pb-1"]/text()',
+            "subtitle": 'span[@class="nbk-block nbk-truncate nbk-text-base nbk-font-normal"]/text()',
         }
 
         titles = {}
         for k in xpaths:
-            titles[k] = self.__select_first_from_selector(title_selector, xpaths[k]).get()
+            titles[k] = self.__select_first_from_selector(
+                title_selector, xpaths[k]
+            ).get()
 
         return titles
 
@@ -69,14 +77,16 @@ class ParserOneProperty:
         address_xpath = 'p[@class="nbk-paragraph nbk-truncate"]/text()'
         address = self.__select_first_from_selector(metadata_selector, address_xpath)
 
-        return {
-            "address": address
-        }
+        return {"address": address}
 
     def _get_price_size(self, metadata_selector):
-        price_size_xpath = 'div[@class="nbk-grid nbk-grid-cols-1 lg:nbk-grid-cols-2 nbk-gap-4"]/div/p'
+        price_size_xpath = (
+            'div[@class="nbk-grid nbk-grid-cols-1 lg:nbk-grid-cols-2 nbk-gap-4"]/div/p'
+        )
 
-        price_size_selectors = self.__select_first_from_selector(metadata_selector, price_size_xpath, first_only=False)
+        price_size_selectors = self.__select_first_from_selector(
+            metadata_selector, price_size_xpath, first_only=False
+        )
 
         if not len(price_size_selectors) == 4:
             logger.error(
@@ -103,11 +113,8 @@ class QuotesSpider(scrapy.Spider):
         "berlin": "https://www.neubaukompass.com/new-build-real-estate/berlin-region/"
     }
 
-
     def start_requests(self):
-        urls = [
-            u for _,u in self.potential_urls.items()
-        ]
+        urls = [u for _, u in self.potential_urls.items()]
         for url in urls:
             yield scrapy.Request(url=url, callback=self.parse)
 
@@ -115,7 +122,9 @@ class QuotesSpider(scrapy.Spider):
 
         properties = []
 
-        for property in response.selector.xpath('//div[@class="nbk-p-3 nbk-w-full md:nbk-w-1/2"]/article'):
+        for property in response.selector.xpath(
+            '//div[@class="nbk-p-3 nbk-w-full md:nbk-w-1/2"]/article'
+        ):
             parser = ParserOneProperty()
             property_data = parser.parse(property)
             properties.append(property_data)
