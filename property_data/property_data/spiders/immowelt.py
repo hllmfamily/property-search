@@ -1,4 +1,3 @@
-from curses import meta
 import re
 
 import scrapy
@@ -17,13 +16,11 @@ class MissingDataSelector:
 
 class ParserOneProperty:
     def __init__(self) -> None:
-        self.name = "neubaukompass"
+        self.name = "immowelt"
         self.dt = datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
 
     def get_all_metadata(self, selector) -> dict:
-        metadata_selector = selector.xpath(
-            'div[@class="nbk-px-2 nbk-pt-2 md:nbk-px-3 md:nbk-pt-3"]'
-        )
+        metadata_selector = selector.xpath('a')
 
         if len(metadata_selector) > 0:
             metadata_selector = metadata_selector[0]
@@ -62,20 +59,15 @@ class ParserOneProperty:
 
     def _get_title(self, metadata_selector):
 
-        titles_xpath = 'div[@class="nbk-w-full nbk-flex nbk-flex-wrap nbk-justify-between nbk-items-top nbk-mt-3"]/a/h2'
-        title_selector = self.__select_first_from_selector(
-            metadata_selector, titles_xpath
-        )
-
         xpaths = {
-            "title": 'span[@class="nbk-block nbk-truncate nbk-pb-1"]/text()',
-            "subtitle": 'span[@class="nbk-block nbk-truncate nbk-text-base nbk-font-normal"]/text()',
+            "title": 'div[@class="FactsSection-1460e"]/div[@class="mainFacts-1b550"]/div[@class="FactsContainer-73861"]/h2/text()',
+            "subtitle": 'div[@class="FactsSection-1460e"]/div[@class="mainFacts-1b550"]/div[@class="FactsContainer-73861"]/div[@class="ProjectFacts-fc5f2 fact-ab1cd"]/div[i/text()="home"]/span/text()',
         }
 
         titles = {}
         for k in xpaths:
             titles[k] = self.__select_first_from_selector(
-                title_selector, xpaths[k]
+                metadata_selector, xpaths[k]
             ).get()
 
         return titles
@@ -88,36 +80,35 @@ class ParserOneProperty:
 
     def _get_price_size(self, metadata_selector):
         price_size_xpath = (
-            'div[@class="nbk-grid nbk-grid-cols-1 lg:nbk-grid-cols-2 nbk-gap-4"]/div/p'
+            'div[@class="FactsSection-1460e"]/div[@class="mainFacts-1b550"]/div[@class="FactsContainer-73861"]/div[div[@data-test="price"]]/div'
         )
 
         price_size_selectors = self.__select_first_from_selector(
             metadata_selector, price_size_xpath, first_only=False
         )
 
-        if not len(price_size_selectors) == 4:
-            logger.error(
+        if not len(price_size_selectors) == 3:
+            logger.warning(
                 f"can not find all the price and size info."
-                f"found {len(price_size_selectors)} while 4 is needed: {price_size_selectors}"
+                f"found {len(price_size_selectors)} while 3 is needed: {price_size_selectors}"
             )
-            return {}
-        else:
-            keys = ["price", "size", "rooms", "when"]
-            values = []
-            for i in price_size_selectors:
-                i_value = re.split("<|>", i.extract())[-3].strip()
-                values.append(i_value)
 
-            return dict(zip(keys, values))
+        price_size = {
+            i.xpath('@data-test').get(): f"{i.xpath('div/text()').get()}{i.xpath('div/div/text()').get()}"
+            for i in price_size_selectors
+        }
+        price_size["size"] = price_size.pop("area")
+
+        return price_size
 
     def _get_link(self, metadata_selector):
 
-        link_xpath = '*/a[@class="nbk-block nbk-truncate hover:nbk-text-primary"]/@href'
+        link_xpath = '@href'
         link = self.__select_first_from_selector(metadata_selector, link_xpath).extract()
 
         return {
-            "id": link,
-            "link": "https://www.neubaukompass.com" + link
+            "id": link.replace("https://www.immowelt.de", ""),
+            "link": link
         }
 
     def parse(self, selector):
@@ -125,13 +116,18 @@ class ParserOneProperty:
 
 
 class QuotesSpider(scrapy.Spider):
-    name = "neubaukompass"
+    name = "immowelt"
     potential_urls = {
-        "berlin": "https://www.neubaukompass.com/new-build-real-estate/berlin-region/"
+        "berlin": "https://www.immowelt.de/liste/berlin/wohnungen/kaufen?sort=relevanz"
     }
 
+    berlin_urls = [
+        f"https://www.immowelt.de/liste/berlin/wohnungen/kaufen?d=true&sd=DESC&sf=RELEVANCE&sp={page}"
+        for page in range(100)
+    ]
+
     def start_requests(self):
-        urls = [u for _, u in self.potential_urls.items()]
+        urls = self.berlin_urls
         for url in urls:
             yield scrapy.Request(url=url, callback=self.parse)
 
@@ -139,9 +135,7 @@ class QuotesSpider(scrapy.Spider):
 
         properties = []
 
-        for property in response.selector.xpath(
-            '//div[@class="nbk-p-3 nbk-w-full md:nbk-w-1/2"]/article'
-        ):
+        for property in response.selector.xpath('//div[@data-test="searchlist"]/div'):
             parser = ParserOneProperty()
             property_data = parser.parse(property)
             properties.append(property_data)
@@ -149,10 +143,10 @@ class QuotesSpider(scrapy.Spider):
             logger.debug(property_data)
             yield property_data
 
-        next_page_xpath = '//div[@class="nbk-flex nbk-justify-between nbk-items-center nbk-p-3 lg:nbk-p-0 nbk-mt-8"]/a[last()]/@href'
+        # next_page_xpath = '//div[@class="nbk-flex nbk-justify-between nbk-items-center nbk-p-3 lg:nbk-p-0 nbk-mt-8"]/a[last()]/@href'
 
-        next_page = response.selector.xpath(next_page_xpath).get()
-        if isinstance(next_page, list) and len(next_page) > 0:
-            next_page = next_page[-1]
-        if next_page:
-            yield response.follow(next_page, callback=self.parse)
+        # next_page = response.selector.xpath(next_page_xpath).get()
+        # if isinstance(next_page, list) and len(next_page) > 0:
+        #     next_page = next_page[-1]
+        # if next_page:
+        #     yield response.follow(next_page, callback=self.parse)
