@@ -13,6 +13,9 @@ class MissingDataSelector:
     def get(self):
         return None
 
+    def extract(self):
+        return None
+
 
 class ParserOneProperty:
     def __init__(self) -> None:
@@ -53,15 +56,18 @@ class ParserOneProperty:
             )
 
         if self.__error(selected_selector):
-            return MissingDataSelector if first_only else selected_selector
+            mds = MissingDataSelector()
+            return mds if first_only else selected_selector
         else:
             return selected_selector[0] if first_only else selected_selector
 
     def _get_title(self, metadata_selector):
 
         xpaths = {
-            "title": 'div[@class="FactsSection-1460e"]/div[@class="mainFacts-1b550"]/div[@class="FactsContainer-73861"]/h2/text()',
-            "subtitle": 'div[@class="FactsSection-1460e"]/div[@class="mainFacts-1b550"]/div[@class="FactsContainer-73861"]/div[@class="ProjectFacts-fc5f2 fact-ab1cd"]/div[i/text()="home"]/span/text()',
+            # "title": 'div[@class="FactsSection-1460e"]/div[@class="mainFacts-1b550"]/div[@class="FactsContainer-73861"]/h2/text()',
+            # "subtitle": 'div[@class="FactsSection-1460e"]/div[@class="mainFacts-1b550"]/div[@class="FactsContainer-73861"]/div[@class="ProjectFacts-fc5f2 fact-ab1cd"]/div[i/text()="home"]/span/text()',
+            "title": 'div[2]/div[1]/div[1]/h2/text()',
+            "subtitle": './/div[i/text()="check"]/span/text()',
         }
 
         titles = {}
@@ -73,43 +79,57 @@ class ParserOneProperty:
         return titles
 
     def _get_address(self, metadata_selector):
-        address_xpath = 'p[@class="nbk-paragraph nbk-truncate"]/text()'
-        address = self.__select_first_from_selector(metadata_selector, address_xpath)
 
-        return {"address": address}
+        xpaths = {
+            "home": './/div[i/text()="home"]/span/text()',
+            "address": './/div[i/text()="location"]/span/text()',
+        }
+
+        addresses = {}
+        for k in xpaths:
+            addresses[k] = self.__select_first_from_selector(
+                metadata_selector, xpaths[k]
+            ).get()
+
+        return addresses
 
     def _get_price_size(self, metadata_selector):
-        price_size_xpath = (
-            'div[@class="FactsSection-1460e"]/div[@class="mainFacts-1b550"]/div[@class="FactsContainer-73861"]/div[div[@data-test="price"]]/div'
-        )
-
-        price_size_selectors = self.__select_first_from_selector(
-            metadata_selector, price_size_xpath, first_only=False
-        )
-
-        if not len(price_size_selectors) == 3:
-            logger.warning(
-                f"can not find all the price and size info."
-                f"found {len(price_size_selectors)} while 3 is needed: {price_size_selectors}"
-            )
-
-        price_size = {
-            i.xpath('@data-test').get(): f"{i.xpath('div/text()').get()}{i.xpath('div/div/text()').get()}"
-            for i in price_size_selectors
+        price_size_xpaths = {
+            # 'div[@class="FactsSection-1460e"]/div[@class="mainFacts-1b550"]/div[@class="FactsContainer-73861"]/div[div[@data-test="price"]]/div'
+            # 'div[2]/div[1]/div[1]/div[div[@data-test="price"]]/div'
+            # 'div[2]/div[1]/div[1]/div[div[@data-test="price"]]/div'
+            "price": './/div[@data-test="price"]/div/text()',
+            "price_max": './/div[@data-test="price-max"]/text()',
+            "size": './/div[@data-test="area"]/div/text()',
+            "size_max": './/div[@data-test="area-max"]/text()',
+            "rooms": './/div[@data-test="rooms"]/div/text()',
+            "rooms_max": './/div[@data-test="rooms-max"]/text()',
         }
-        price_size["size"] = price_size.pop("area")
 
-        return price_size
+        prices_and_sizes = {}
+
+        for k in price_size_xpaths:
+            prices_and_sizes[k] = self.__select_first_from_selector(
+                metadata_selector, price_size_xpaths[k]
+            ).get()
+
+        for k in ["price", "size", "rooms"]:
+            prices_and_sizes[k] = (prices_and_sizes.get(k, "") or "") + (prices_and_sizes.pop(f"{k}_max", "") or "")
+
+        return prices_and_sizes
 
     def _get_link(self, metadata_selector):
 
         link_xpath = '@href'
         link = self.__select_first_from_selector(metadata_selector, link_xpath).extract()
 
-        return {
-            "id": link.replace("https://www.immowelt.de", ""),
-            "link": link
-        }
+        if link:
+            return {
+                "id": link.replace("https://www.immowelt.de", ""),
+                "link": link
+            }
+        else:
+            return {}
 
     def parse(self, selector):
         return self.get_all_metadata(selector)
@@ -123,7 +143,7 @@ class QuotesSpider(scrapy.Spider):
 
     berlin_urls = [
         f"https://www.immowelt.de/liste/berlin/wohnungen/kaufen?d=true&sd=DESC&sf=RELEVANCE&sp={page}"
-        for page in range(100)
+        for page in range(1,10)
     ]
 
     def start_requests(self):
@@ -140,7 +160,7 @@ class QuotesSpider(scrapy.Spider):
             property_data = parser.parse(property)
             properties.append(property_data)
 
-            logger.debug(property_data)
+            logger.info(f"Retrieved {len(property_data)} properties from {response.url}.")
             yield property_data
 
         # next_page_xpath = '//div[@class="nbk-flex nbk-justify-between nbk-items-center nbk-p-3 lg:nbk-p-0 nbk-mt-8"]/a[last()]/@href'
