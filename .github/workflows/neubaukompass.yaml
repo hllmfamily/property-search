@@ -1,4 +1,4 @@
-name: Download Immowelt Data
+name: Download Neubaukompass Data
 
 on:
   push:
