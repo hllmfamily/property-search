@@ -135,19 +135,17 @@ class ParserOneProperty:
         return self.get_all_metadata(selector)
 
 
-class QuotesSpider(scrapy.Spider):
+class PropertySpider(scrapy.Spider):
     name = "immowelt"
-    potential_urls = {
-        "berlin": "https://www.immowelt.de/liste/berlin/wohnungen/kaufen?sort=relevanz"
-    }
 
-    berlin_urls = [
-        f"https://www.immowelt.de/liste/berlin/wohnungen/kaufen?d=true&sd=DESC&sf=RELEVANCE&sp={page}"
+    all_urls = [
+        f"https://www.immowelt.de/liste/{city}/wohnungen/kaufen?d=true&sd=DESC&sf=RELEVANCE&sp={page}"
         for page in range(1,10)
+        for city in ["berlin", "koeln", "freiburg-im-breisgau"]
     ]
 
     def start_requests(self):
-        urls = self.berlin_urls
+        urls = self.all_urls
         for url in urls:
             yield scrapy.Request(url=url, callback=self.parse)
 

@@ -12,7 +12,10 @@ class MissingDataSelector:
         pass
 
     def get(self):
-        return None
+        return ""
+
+    def extract(self):
+        return ""
 
 
 class ParserOneProperty:
@@ -56,7 +59,7 @@ class ParserOneProperty:
             )
 
         if self.__error(selected_selector):
-            return MissingDataSelector if first_only else selected_selector
+            return MissingDataSelector() if first_only else selected_selector
         else:
             return selected_selector[0] if first_only else selected_selector
 
@@ -124,10 +127,12 @@ class ParserOneProperty:
         return self.get_all_metadata(selector)
 
 
-class QuotesSpider(scrapy.Spider):
+class NeuBauSpider(scrapy.Spider):
     name = "neubaukompass"
     potential_urls = {
-        "berlin": "https://www.neubaukompass.com/new-build-real-estate/berlin-region/"
+        "berlin": "https://www.neubaukompass.com/new-build-real-estate/berlin-region/",
+        "cologne": "https://www.neubaukompass.com/new-build-real-estate/koeln-region/",
+        "freiburg": "https://www.neubaukompass.com/new-build-real-estate/freiburg-region/"
     }
 
     def start_requests(self):
